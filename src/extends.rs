@@ -12,23 +12,26 @@ pub fn extends_implementation(meta: TokenStream, item: TokenStream) -> TokenStre
         attrs, 
         vis, 
         ident, 
-        generics, 
         fields, 
         semi_token,
         ..
     } = child;
 
+    // If the struct is tuple or unit, return an error.
     match fields {
-        Fields::Named(ref fields) => (),
+        Fields::Named(_) => (),
         _ => return quote! {
             compile_error!("extends attribute only supports named fields");
         }.into(),
     }
 
+    // Get only the last segment of the parent path, the type name.
     let parent_ident = parent.segments.last().unwrap().ident.clone();
     let parent_macro = get_macro_name(&parent_ident);
+    // Same as in class, we need to convert fields to Vec to avoid additional braces.
     let fields: Vec<Field> = fields.into_iter().collect();
 
+    // We use the class extender macro to insert parent fields into our struct.
     let struct_def = quote! {
         #parent_macro!{ 
             #(#attrs)*
@@ -40,6 +43,13 @@ pub fn extends_implementation(meta: TokenStream, item: TokenStream) -> TokenStre
         #semi_token
     };
 
+    // Implement Deref and DerefMut for the child struct.
+    // This will allow us to implicitly convert the child struct to the parent struct whenever we need to use methods from parent.
+    // We implement this by converting child pointer to parent pointer.
+    // Because of this, we need to make sure that the fields from parent is the first in the struct.
+    // Otherwise, the pointer conversion will not work correctly.
+    // This is ensured in class_implementation function.
+    // So although this needs unsafe code, it is safe.
     let deref_traits = quote! {
         impl std::ops::Deref for #ident {
             type Target = #parent_ident;
