@@ -2,13 +2,14 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, ItemStruct, Fields, Field};
 
-use crate::get_macro_name;
+use crate::get_ce_name;
 
 pub fn class_implementation(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemStruct);
     let ItemStruct { 
         ref ident, 
         ref fields, 
+        ref vis,
         ..
     } = input;
 
@@ -20,7 +21,7 @@ pub fn class_implementation(item: TokenStream) -> TokenStream {
         }.into(),
     }
 
-    let macro_name = get_macro_name(ident);
+    let ce_name = get_ce_name(ident);
     // If we don't convert the fields to a Vec, the interpolation of the fields will generate additional braces around it.
     let fields: Vec<Field> = fields.clone()
         .into_iter()
@@ -31,8 +32,9 @@ pub fn class_implementation(item: TokenStream) -> TokenStream {
     // This is how we can later get access to the fields of the parent class from other parts of code.
     // Note that the macro has to take the entire struct definition, because declarative macros can't expand into fields.
     // ## is used in quote macro to escape the #.
-    let macro_def = quote! {
-        macro_rules! #macro_name {
+    let ce_macro = quote! {
+        #[macro_export]
+        macro_rules! #ce_name {
             ($( ##[$meta:meta] )* $vis:vis struct $s:ident { $( $f:ident : $t:ty ),*}) => {
                 $( ##[$meta] )*
                 $vis struct $s {
@@ -48,9 +50,10 @@ pub fn class_implementation(item: TokenStream) -> TokenStream {
         }
     };
 
-    // Returns the struct definition and the class extender macro.
+    // Returns the struct definition and class extender macro and export it.
     quote! {
         #input
-        #macro_def
+        #ce_macro
+        #vis use #ce_name;
     }.into()
 }

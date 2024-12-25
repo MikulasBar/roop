@@ -4,20 +4,18 @@ extern crate proc_macro;
 
 mod class;
 mod extends;
+mod import;
 
 use proc_macro::TokenStream;
 
-use class::class_implementation;
-use extends::extends_implementation;
-
 /// Initializes class.
 /// 
-/// Every struct that you would like to inherit from should be marked with this attribute.
+/// Every struct that you would like to extend, should be marked with this attribute.
 /// 
-/// This attribute can be used only on structs with named fields.
+/// This can be used only on structs with named fields.
 #[proc_macro_attribute]
 pub fn class(_meta: TokenStream, item: TokenStream) -> TokenStream {
-    class_implementation(item)
+    class::class_implementation(item)
 }
 
 /// Extends class.
@@ -29,10 +27,18 @@ pub fn class(_meta: TokenStream, item: TokenStream) -> TokenStream {
 /// This attribute can be used only on structs with named fields.
 #[proc_macro_attribute]
 pub fn extends(meta: TokenStream, item: TokenStream) -> TokenStream {
-    extends_implementation(meta, item)
+    extends::extends_implementation(meta, item)
+}
+
+#[proc_macro]
+pub fn import(input: TokenStream) -> TokenStream {
+    import::import_implementation(input)
 }
 
 // From class name generates name for class extender macro.
-fn get_macro_name(ident: &syn::Ident) -> syn::Ident {
-    syn::Ident::new(&format!("__{}_class_extender", ident), ident.span())
+fn get_ce_name(ident: &syn::Ident) -> syn::Ident {
+    syn::Ident::new(&format!("{}{}", CE_PREFIX, ident), ident.span())
 }
+
+// class extender prefix
+const CE_PREFIX: &str = "__roop_ce_";

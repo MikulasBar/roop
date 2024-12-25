@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, ItemStruct, Fields, Field, Path};
 
-use crate::get_macro_name;
+use crate::get_ce_name;
 
 pub fn extends_implementation(meta: TokenStream, item: TokenStream) -> TokenStream {
     let parent = parse_macro_input!(meta as Path);
@@ -26,19 +26,21 @@ pub fn extends_implementation(meta: TokenStream, item: TokenStream) -> TokenStre
     }
 
     // Get only the last segment of the parent path, the type name.
+    // This isn't problem because all classes are in the root of library so the path shouldn't be used anyway. 
     let parent_ident = parent.segments.last().unwrap().ident.clone();
-    let parent_macro = get_macro_name(&parent_ident);
+    let parent_ce = get_ce_name(&parent_ident);
     // Same as in class, we need to convert fields to Vec to avoid additional braces.
     let fields: Vec<Field> = fields.into_iter().collect();
-
+    // pure path to location of parent
+    let parent_only_path = get_only_path(parent.clone());
     // We use the class extender macro to insert parent fields into our struct.
+    // crate:: is there because every class class extender macro is exported to the root of library
     let struct_def = quote! {
-        #parent_macro!{ 
+        #parent_only_path::#parent_ce!{ 
             #(#attrs)*
             #vis struct #ident {
                 #(#fields),*
             }
-            
         }
         #semi_token
     };
@@ -52,7 +54,7 @@ pub fn extends_implementation(meta: TokenStream, item: TokenStream) -> TokenStre
     // So although this needs unsafe code, it is safe.
     let deref_traits = quote! {
         impl std::ops::Deref for #ident {
-            type Target = #parent_ident;
+            type Target = #parent;
             
             fn deref(&self) -> &Self::Target {
                 unsafe { &*(self as *const #ident as *const #parent) }
@@ -70,4 +72,18 @@ pub fn extends_implementation(meta: TokenStream, item: TokenStream) -> TokenStre
         #struct_def
         #deref_traits
     }.into()
+}
+
+// get only the path but not the item at the end
+fn get_only_path(mut path: Path) -> Path {
+    let len = path.segments.len();
+    if len == 1 {
+        return path;
+    }
+    
+    path.segments = path.segments.into_iter()
+        .take(len - 1)
+        .collect();
+
+    path
 }
